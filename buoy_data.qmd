@@ -1,0 +1,26 @@
+---
+title: "buoy_data_615"
+format: html
+editor: visual
+---
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Running Code
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+```{r}
+data <- read.table('2023.txt')
+colnames(data) <- c('YY','MM','DD','hh', 'mm', 'WDIR', 'WSPD', 'GST', 'WVHT','DPD','APD', 'MWD', 'PRES','ATMP', 'WTMP', 'DEWP', 'VIS','TIDE')
+```
+
+You can add options to executable code like this
+
+```{r}
+summary(data)
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
