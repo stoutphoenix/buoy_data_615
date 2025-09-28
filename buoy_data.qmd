@@ -59,3 +59,160 @@ ggplot(random_subset) +
 ```
 
 Our model indicates a correlation of -0.027 when predicting wind speed from pressure. This means for every unit increase of pressure (hPa), the wind speed is expected to decrease by 0.027 m/s. Our model indicates wind speed to be a statistically significant predictor with a very low p-value of 2e-16, however the adjusted R\^2 of 0.0065 indicates it is not a very useful predictor as only 0.65% of the variance in wind speed can be explained from pressure.
+
+# A Deeper Analysis in Predicting Wind Speed From Past Wind Speeds
+
+To gain an intuition if this is possible, we first plot wind speed as a time series in the year 2022
+
+```{r}
+data <- read.table('data/2022.txt')
+colnames(data) <- c('YY','MM','DD','hh', 'mm', 'WDIR', 'WSPD', 'GST', 'WVHT','DPD','APD', 'MWD', 'PRES','ATMP', 'WTMP', 'DEWP', 'VIS','TIDE')
+
+data <- data %>%
+  filter(WSPD<99)
+  
+data <- data %>%
+  mutate(datetime = as.POSIXct(paste(YY, MM, DD, hh, mm), 
+                               format = "%Y %m %d %H %M"))
+
+ggplot(data) +
+  aes(x = datetime, y = WSPD) +
+  geom_point(colour = alpha("#112446", 0.2)) +
+  theme_minimal()
+```
+
+We can see a gap of data in February to May, but we see in the other months there may be an underlying cyclical nature of WSPD that we may be able to predict from previous years. We will simplify our problem to try and model the daily average wind speed data in 2022 as opposed to hourly values. To do this we will interface with a SQLite database.
+
+### Connect to buoy_data.db
+
+```{r}
+pacman::p_load('RSQLite')
+con <- dbConnect(RSQLite::SQLite(), "buoy_data.db")
+```
+
+Our approach will be to try to model WSPD data from the means of all the WSPD data from previous years. Due to the unfortunate gap in 2023 data, we will try to model 2022 data.
+
+### Load data from SQLite DB
+
+```{r}
+averages <- dbGetQuery(con, 
+"SELECT MM, DD, AVG(WSPD) as avg_wspd_hist
+FROM buoy_data
+WHERE WSPD < 99 
+AND NOT (MM = 2 AND DD = 29)
+AND YY < 2022
+GROUP BY MM, DD
+ORDER BY MM, DD")
+
+
+daily_2022 <- dbGetQuery(con, "
+  SELECT MM, DD, AVG(WSPD) as avg_wspd_2022
+  FROM buoy_data
+  WHERE YY = 2022 
+  AND WSPD < 99 
+  AND NOT (MM = 2 AND DD = 29)
+  GROUP BY MM, DD
+  ORDER BY MM, DD
+")
+```
+
+### Clean data and plot historical average and 2022 average
+
+```{r}
+pacman::p_load(lubridate)
+# daily_2022 is missing 7 values
+missing_days <- anti_join(averages[,1:2], daily_2022[,1:2], by = c("MM", "DD"))
+
+# Fill in values with NA:
+missing_days <- missing_days %>%
+  mutate(avg_wspd_2022 = NA)
+
+# Insert NA rows into 2022
+daily_2022 <- bind_rows(daily_2022, missing_days) %>%
+  arrange(MM, DD)
+
+# Join data
+joined_data <- left_join(daily_2022, averages, by = c("MM", "DD"))
+
+joined_data <- joined_data %>%
+  mutate(
+    date = make_date(year = 2022, month = MM, day = DD),
+    doy = yday(date),
+    sin_doy = sin(2 * pi * doy / 365),
+    cos_doy = cos(2 * pi * doy / 365)
+  )
+
+ggplot(joined_data) +
+  aes(x = doy, y = avg_wspd_hist) +
+  geom_point(colour = "#112446") +
+  labs(
+    x = "Day of Year",
+    y = "Average Wind Speed (m/s)",
+    title = "Historical Wind Speed Averages From 2000 to 2021"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 20L),
+    axis.title.y = element_text(size = 20L),
+    axis.title.x = element_text(size = 20L),
+    axis.text.y = element_text(size = 20L),
+    axis.text.x = element_text(size = 20L),
+    legend.text = element_text(size = 20L),
+    legend.title = element_text(size = 20L)
+  )
+
+```
+
+We see there is a sinusoidal nature to the historical averages of wind speed. We can take this into consideration when developing a model.
+
+### Model comparing average past daily speed to 2022 daily averages
+
+```{r}
+model <- lm(avg_wspd_2022 ~ avg_wspd_hist, data = joined_data)
+summary(model)
+```
+
+This model alone is decently useful with an adjusted R\^2 of 0.24 meaning 24% of the variance in 2022 daily wind speed can be explained by past averages. The p-value of 2e-16 indicates this is a statistically significant result and past averages can be a true predictor. However, we are still losing the sinusoidial seasonal data we initially saw when plotting past averages. We can take this into account in our next model.
+
+```{r}
+
+model2 <- lm(avg_wspd_2022 ~ avg_wspd_hist + sin_doy + cos_doy, joined_data)
+summary(model2)
+```
+
+Here we see that historical averages actually aren't the best predictor and seasonality is preferred.
+
+```{r}
+model3 <- lm(avg_wspd_2022 ~ cos_doy, joined_data)
+summary(model3)
+```
+
+Thus, from just cos(date) alone we can explain 31.2% of the variance in the daily wind speeds, as opposed to 24% of the variance explained from historical averages.
+
+### Plotting Final Model
+
+```{r, warning=FALSE}
+
+b <- coef(model3)[1] # Intercept
+m <- coef(model3)[2] # Slope
+
+b <- as.numeric(b)
+m <- as.numeric(m)
+
+ggplot(joined_data) +
+  aes(x = cos_doy, y = avg_wspd_2022) +
+  geom_point(colour = alpha("#112446", 0.5)) +
+  labs(
+    x = "cos(2pi * doy/365)",
+    y = "Average Wind Speed",
+    title = "Average Daily 2022 Wind Speed From Seasonal Data"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 15L),
+    axis.title.y = element_text(size = 20L),
+    axis.title.x = element_text(size = 20L)
+  ) + 
+  geom_abline(intercept = b, slope = m, colour = "red")
+
+```
