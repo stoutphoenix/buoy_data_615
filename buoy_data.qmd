@@ -81,7 +81,7 @@ ggplot(data) +
   theme_minimal()
 ```
 
-We can see a gap of data in February to May, but we see in the other months there may be an underlying cyclical nature of WSPD that we may be able to predict from previous years. We will simplify our problem to try and model the daily average wind speed data in 2022 as opposed to hourly values. To do this we will interface with a SQLite database.
+We see there may be an underlying cyclical nature of windspeed that we may be able to predict from previous years. We will simplify our problem to try and model the daily average wind speed data in 2022 as opposed to hourly values. To do this we will interface with a SQLite database.
 
 ### Connect to buoy_data.db
 
@@ -89,8 +89,6 @@ We can see a gap of data in February to May, but we see in the other months ther
 pacman::p_load('RSQLite')
 con <- dbConnect(RSQLite::SQLite(), "buoy_data.db")
 ```
-
-Our approach will be to try to model WSPD data from the means of all the WSPD data from previous years. Due to the unfortunate gap in 2023 data, we will try to model 2022 data.
 
 ### Load data from SQLite DB
 
@@ -116,7 +114,7 @@ daily_2022 <- dbGetQuery(con, "
 ")
 ```
 
-### Clean data and plot historical average and 2022 average
+### Clean Data and Plot Historical Average and 2022 Average
 
 ```{r}
 pacman::p_load(lubridate)
@@ -152,7 +150,7 @@ ggplot(joined_data) +
   ) +
   theme_minimal() +
   theme(
-    plot.title = element_text(size = 20L),
+    plot.title = element_text(size = 15L),
     axis.title.y = element_text(size = 20L),
     axis.title.x = element_text(size = 20L),
     axis.text.y = element_text(size = 20L),
