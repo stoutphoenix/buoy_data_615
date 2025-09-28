@@ -4,35 +4,31 @@ format: html
 editor: visual
 ---
 
-## Quarto
+# An Analysis on NDBC Buoy 44013
 
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
-
-## Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
-
-```{r}
-data <- read.table('data/2023.txt')
-colnames(data) <- c('YY','MM','DD','hh', 'mm', 'WDIR', 'WSPD', 'GST', 'WVHT','DPD','APD', 'MWD', 'PRES','ATMP', 'WTMP', 'DEWP', 'VIS','TIDE')
-```
-
-You can add options to executable code like this
-
-```{r}
-summary(data)
-```
-
-Is wind speed and pressure correlated?
+### Loading and cleaning 2023 data:
 
 ```{r}
 pacman::p_load(dplyr, ggplot2)
-wind <- data$WSPD
-pressure <- data$PRES
-df <- data.frame(wind, pressure)
+
+data <- read.table('data/2023.txt')
+colnames(data) <- c('YY','MM','DD','hh', 'mm', 'WDIR', 'WSPD', 'GST', 'WVHT','DPD','APD', 'MWD', 'PRES','ATMP', 'WTMP', 'DEWP', 'VIS','TIDE')
+
+# This analysis will focus on wind speed and pressure
+data <- data %>%
+  filter(WSPD<99) %>%
+  filter(PRES<9999)
+
+summary(data)
+```
+
+### Model Wind Speed as a Function of Pressure
+
+```{r}
+df <- data.frame(data$WSPD, data$PRES)
+colnames(df) <- c('wind', 'pressure')
 
 df <- df %>%
-  filter(wind<99 & pressure<9999) %>%
   filter(!is.na(wind) | !is.na(pressure))
 
 df$pressure <- df$pressure - mean(df$pressure)
@@ -44,11 +40,18 @@ summary(model)
 b <- coef(model)[1] # Intercept
 m <- coef(model)[2] # Slope
 
+b <- as.numeric(b)
+m <- as.numeric(m)
+
+eq = paste('y=',round(m,3),'x+',round(b,3))
+
 ggplot(random_subset) +
   aes(x = pressure, y = wind) +
   geom_point(colour = alpha("#112446", 0.25)) +
   theme_minimal() +
   geom_abline(intercept = b, slope = m, colour = "red") +
+  annotate("text", x = -26, y = m*-25+b+1, 
+           label = eq, size = 4, color='red') +
   labs(title = "Wind Speed as a Function of Pressure",
        caption = "Caption or source info",
        x = "Pressure (hPa)",
