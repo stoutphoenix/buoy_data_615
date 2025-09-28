@@ -1,6 +1,6 @@
 ---
 title: "buoy_data_615"
-format: html
+format: pdf
 editor: visual
 ---
 
