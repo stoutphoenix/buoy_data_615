@@ -1,0 +1,134 @@
+---
+title: "Exercises"
+format: pdf
+editor: visual
+---
+
+## Import data
+
+```{r, echo=FALSE}
+pacman::p_load(nycflights13, tidyverse)
+```
+
+## 3.2.5: 1,4,5
+
+### 1
+```{r}
+
+# Combining all conditions into single pipe for fun
+a <- flights |>
+  filter(arr_delay>=2) |>
+  filter(dest == 'IAH' | dest == 'HOU') |>
+  filter(carrier == 'AA' | carrier == 'UA' | carrier == 'DL') |>
+  filter(month == 7 | month == 8 | month == 9) |>
+  filter(dep_delay<=0)
+
+# Have to do this pipe separate cause it contradicts if in other one
+b <- flights |>
+  filter(dep_delay>=1 & arr_delay<30)
+```
+
+### 4
+```{r}
+un <- flights |>
+  distinct(month,day)
+
+dim(un)
+```
+There are 365 unique month, day pairs, so yes there was a flight everyday of 2013.
+
+### 5
+```{r}
+long <- flights |>
+  arrange(desc(distance)) |>
+  head(1)
+
+short <- flights |>
+  arrange(distance) |>
+  head(1)
+
+long
+short
+```
+JFK to HNL is the longest and JFK to LGA is the shortest
+
+## 3.3.5: 1,4
+
+### 1
+```{r}
+flights |>
+  mutate(delay = dep_time-sched_dep_time) |>
+  mutate(diff = delay-dep_delay) |>
+  filter(diff != 0 | !is.na(diff))
+```
+I would expect dep_deal = dep_time - sched_dep_time, but we can see they are actually storing time as hmm. So 558 is 5:58 and 600 is 6:00, so the intuitive approach doesn't work.
+
+### 4
+any_of() selects any variable in a vector. It helps when you want variables removed because calling it twice doesn't error.
+
+
+## 3.5.7: 1,2,4,6
+
+### 1
+```{r}
+flights |>
+  group_by(carrier) |>
+  summarise(avg_dep_delay = mean(dep_delay, na.rm = TRUE)) |>
+  arrange(desc(avg_dep_delay))
+```
+F9 is the worst.
+
+### 2
+```{r}
+flights |>
+  group_by(dest) |>
+  slice_max(dep_delay, n = 1, with_ties = FALSE) |>
+  ungroup()
+```
+
+### 4
+It excludes the n min/max rows and returns the rest.
+
+### 6
+```{r}
+df <- tibble(
+  x = 1:5,
+  y = c("a", "b", "a", "a", "b"),
+  z = c("K", "K", "L", "L", "K")
+)
+```
+group_by() will set the metadata group values for the tibble for the columns passed.
+```{r}
+df |>
+  group_by(y)
+```
+arrange(y) will order y alphabetically
+```{r}
+df |>
+  arrange(y)
+```
+This will get the mean x value for each y value:
+```{r}
+df |>
+  group_by(y) |>
+  summarize(mean_x = mean(x))
+```
+This will do the same but for each unique y,z pair (and drop the group metadata):
+```{r}
+df |>
+  group_by(y, z) |>
+  summarize(mean_x = mean(x), .groups = "drop")
+```
+These will get the mean_x for each unique y,z pair. The second one adds a column to the original tibble and the first just lists all uniqe values.
+```{r}
+df |>
+  group_by(y, z) |>
+  summarize(mean_x = mean(x))
+
+df |>
+  group_by(y, z) |>
+  mutate(mean_x = mean(x))
+```
+
+
+
